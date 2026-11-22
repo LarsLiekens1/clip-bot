@@ -23,7 +23,7 @@ jobs:
           python-version: "3.12"
 
       - name: Installeer dependencies
-        run: pip install yt-dlp requests matplotlib
+        run: pip install -U "yt-dlp[default,curl-cffi]" requests matplotlib
 
       - name: Draai script
         run: python tiktok_daily.py

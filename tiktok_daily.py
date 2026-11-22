@@ -23,6 +23,16 @@ import matplotlib.pyplot as plt  # noqa: E402
 import requests  # noqa: E402
 import yt_dlp  # noqa: E402
 
+try:
+    from yt_dlp.networking.impersonate import ImpersonateTarget
+except Exception:  # noqa: BLE001
+    ImpersonateTarget = None
+
+try:
+    from curl_cffi import requests as cffi_requests
+except Exception:  # noqa: BLE001
+    cffi_requests = None
+
 USERNAME = os.environ["TIKTOK_USERNAME"].lstrip("@")
 WEBHOOK = os.environ["DISCORD_WEBHOOK_URL"]
 PING_USER = os.environ.get("DISCORD_PING_USER_ID", "").strip()
@@ -63,14 +73,26 @@ def save_state(state):
 
 # ---------- data ophalen ----------
 
+def http_get(url):
+    """GET met browser-impersonation als curl_cffi beschikbaar is."""
+    if cffi_requests is not None:
+        return cffi_requests.get(
+            url,
+            headers={"Accept-Language": "en-US,en;q=0.9"},
+            impersonate="chrome",
+            timeout=30,
+        )
+    return requests.get(
+        url,
+        headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"},
+        timeout=30,
+    )
+
+
 def fetch_followers():
     """Leest het volgersaantal uit de JSON op de profielpagina. Geeft None bij falen."""
     try:
-        r = requests.get(
-            f"https://www.tiktok.com/@{USERNAME}",
-            headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"},
-            timeout=30,
-        )
+        r = http_get(f"https://www.tiktok.com/@{USERNAME}")
         m = re.search(
             r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>',
             r.text,
@@ -96,6 +118,8 @@ def fetch_videos():
         "ignoreerrors": True,
         "playlistend": MAX_VIDEOS,
     }
+    if ImpersonateTarget is not None:
+        opts["impersonate"] = ImpersonateTarget.from_str("chrome")
     videos = []
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
